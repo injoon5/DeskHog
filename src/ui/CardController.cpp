@@ -1,5 +1,6 @@
 #include "ui/CardController.h"
 #include "ui/PaddleCard.h"
+#include "ui/ClockCard.h"
 #include <algorithm>
 
 QueueHandle_t CardController::uiQueue = nullptr;
@@ -381,6 +382,32 @@ void CardController::initializeCardTypes() {
         return nullptr;
     };
     registerCardType(paddleDef);
+    
+    // Register CLOCK card type
+    CardDefinition clockDef;
+    clockDef.type = CardType::CLOCK;
+    clockDef.name = "Digital clock";
+    clockDef.allowMultiple = false;
+    clockDef.needsConfigInput = false;
+    clockDef.configInputLabel = "";
+    clockDef.uiDescription = "A digital clock displaying time, date, and AM/PM";
+    clockDef.factory = [this](const String& configValue) -> lv_obj_t* {
+        ClockCard* newCard = new ClockCard(screen);
+        
+        if (newCard && newCard->getCard()) {
+            // Add to unified tracking system
+            CardInstance instance{newCard, newCard->getCard()};
+            dynamicCards[CardType::CLOCK].push_back(instance);
+            
+            // Register as input handler for updates
+            cardStack->registerInputHandler(newCard->getCard(), newCard);
+            return newCard->getCard();
+        }
+        
+        delete newCard;
+        return nullptr;
+    };
+    registerCardType(clockDef);
 }
 
 void CardController::handleCardConfigChanged() {
