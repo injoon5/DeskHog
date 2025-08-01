@@ -50,4 +50,7 @@ private:
     bool _ntp_initialized;
     bool _time_synced;
     bool _error_shown;
+    uint8_t _retry_count;
+    
+    static const uint8_t MAX_RETRIES = 5;
 };

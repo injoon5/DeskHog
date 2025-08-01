@@ -36,4 +36,7 @@ private:
     int _current_year;
     TimezoneConfig _timezone_config;
     bool _ntp_initialized;
+    uint8_t _retry_count;
+    
+    static const uint8_t MAX_RETRIES = 5;
 };

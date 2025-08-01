@@ -27,8 +27,9 @@ NowPlayingCard::NowPlayingCard(lv_obj_t* parent, EventQueue& eventQueue, const S
     lv_obj_set_style_text_font(_title_label, Style::mediumValueFont(), 0);
     lv_obj_set_style_text_color(_title_label, lv_color_white(), 0);
     lv_obj_set_style_text_align(_title_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(_title_label, 240);
+    lv_obj_set_width(_title_label, 230);
     lv_obj_align(_title_label, LV_ALIGN_CENTER, 0, 0);
+    lv_label_set_long_mode(_title_label, LV_LABEL_LONG_SCROLL);
     lv_label_set_text(_title_label, "Loading...");
     
     // Album container (0, 60), size (240, 15)
@@ -43,8 +44,9 @@ NowPlayingCard::NowPlayingCard(lv_obj_t* parent, EventQueue& eventQueue, const S
     lv_obj_set_style_text_font(_album_label, Style::valueFont(), 0);
     lv_obj_set_style_text_color(_album_label, lv_color_hex(0xD8D8D8), 0);
     lv_obj_set_style_text_align(_album_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(_album_label, 240);
+    lv_obj_set_width(_album_label, 230);
     lv_obj_align(_album_label, LV_ALIGN_CENTER, 0, 0);
+    lv_label_set_long_mode(_album_label, LV_LABEL_LONG_SCROLL);
     lv_label_set_text(_album_label, "");
     
     // Artist container (0, 85), size (240, 15)
@@ -59,8 +61,9 @@ NowPlayingCard::NowPlayingCard(lv_obj_t* parent, EventQueue& eventQueue, const S
     lv_obj_set_style_text_font(_artist_label, Style::valueFont(), 0);
     lv_obj_set_style_text_color(_artist_label, lv_color_white(), 0);
     lv_obj_set_style_text_align(_artist_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(_artist_label, 240);
+    lv_obj_set_width(_artist_label, 230);
     lv_obj_align(_artist_label, LV_ALIGN_CENTER, 0, 0);
+    lv_label_set_long_mode(_artist_label, LV_LABEL_LONG_SCROLL);
     lv_label_set_text(_artist_label, "");
     
     // Error label (hidden by default)
@@ -204,17 +207,10 @@ void NowPlayingCard::requestNowPlayingUpdate() {
 }
 
 void NowPlayingCard::updateNowPlayingDisplay(const NowPlayingData& data) {
-    // Update title with truncation
-    String truncatedTitle = truncateText(data.title, Style::mediumValueFont(), 220);
-    lv_label_set_text(_title_label, truncatedTitle.c_str());
-    
-    // Update album with truncation
-    String truncatedAlbum = truncateText(data.album, Style::valueFont(), 220);
-    lv_label_set_text(_album_label, truncatedAlbum.c_str());
-    
-    // Update artist with truncation
-    String truncatedArtist = truncateText(data.artist, Style::mediumValueFont(), 220);
-    lv_label_set_text(_artist_label, truncatedArtist.c_str());
+    // Update labels directly - scrolling will handle long text
+    lv_label_set_text(_title_label, data.title.c_str());
+    lv_label_set_text(_album_label, data.album.c_str());
+    lv_label_set_text(_artist_label, data.artist.c_str());
 }
 
 void NowPlayingCard::showError(const String& message) {
@@ -246,37 +242,6 @@ void NowPlayingCard::hideError() {
     }
 }
 
-String NowPlayingCard::truncateText(const String& text, const lv_font_t* font, int maxWidth) {
-    if (text.length() == 0) return text;
-    
-    // Simple truncation - measure text width and truncate if needed
-    lv_point_t size;
-    lv_text_get_size(&size, text.c_str(), font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-
-    if (size.x <= maxWidth) {
-        return text;
-    }
-    
-    // Binary search for the right length
-    String truncated = text;
-    int left = 0, right = text.length();
-    
-    while (left < right) {
-        int mid = (left + right + 1) / 2;
-        String candidate = text.substring(0, mid) + "...";
-        
-        lv_text_get_size(&size, candidate.c_str(), font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        
-        if (size.x <= maxWidth) {
-            left = mid;
-            truncated = candidate;
-        } else {
-            right = mid - 1;
-        }
-    }
-    
-    return truncated;
-}
 
 bool NowPlayingCard::isWiFiConnected() {
     return WiFi.status() == WL_CONNECTED;

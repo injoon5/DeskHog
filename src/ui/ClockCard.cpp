@@ -11,7 +11,7 @@ ClockCard::ClockCard(lv_obj_t* parent, EventQueue& eventQueue, const String& tim
     : _event_queue(eventQueue), _card(nullptr), _time_label(nullptr), _date_label(nullptr), 
       _ampm_label(nullptr), _weekday_label(nullptr), _left_container(nullptr), _error_label(nullptr),
       _progress_bar(nullptr), _last_update(0), _last_ntp_sync(0), _ntp_initialized(false), 
-      _time_synced(false), _error_shown(false) {
+      _time_synced(false), _error_shown(false), _retry_count(0) {
     
     // Initialize timezone configuration
     _timezone_config = getTimezoneConfig(timezone_config);
@@ -243,6 +243,25 @@ void ClockCard::onEvent(const Event& event) {
 }
 
 void ClockCard::requestTimeSync() {
+    // Check WiFi connection status
+    if (!isWiFiConnected()) {
+        if (_retry_count < MAX_RETRIES) {
+            _retry_count++;
+            Serial.printf("ClockCard: WiFi not connected, retry %d/%d\n", _retry_count, MAX_RETRIES);
+            
+            // Schedule retry after 2 seconds
+            _last_ntp_sync = lv_tick_get() - 300000 + 2000; // Retry in 2 seconds
+            return;
+        } else {
+            // Max retries reached
+            Serial.println("ClockCard: Max retries reached, WiFi not connected");
+            return;
+        }
+    }
+    
+    // WiFi is connected, reset retry count
+    _retry_count = 0;
+    
     Serial.printf("ClockCard: Requesting time sync for %s (UTC%+d)\n", 
                   _timezone_config.name.c_str(), 
                   _timezone_config.utc_offset_hours);

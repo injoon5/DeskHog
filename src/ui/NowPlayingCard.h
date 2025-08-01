@@ -25,7 +25,6 @@ private:
     void hideError();
     void requestNowPlayingUpdate();
     bool isWiFiConnected();
-    String truncateText(const String& text, const lv_font_t* font, int maxWidth);
     
     EventQueue& _event_queue;
     

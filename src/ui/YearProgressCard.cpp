@@ -6,7 +6,7 @@
 
 YearProgressCard::YearProgressCard(lv_obj_t* parent, EventQueue& eventQueue, const String& timezone_config) 
     : _event_queue(eventQueue), _card(nullptr), _year_label(nullptr), _progress_bar(nullptr), 
-      _last_update(0), _last_ntp_sync(0), _current_year(0), _ntp_initialized(false) {
+      _last_update(0), _last_ntp_sync(0), _current_year(0), _ntp_initialized(false), _retry_count(0) {
     
     // Initialize timezone configuration
     _timezone_config = getTimezoneConfig(timezone_config);
@@ -87,8 +87,8 @@ bool YearProgressCard::handleButtonPress(uint8_t button_index) {
 bool YearProgressCard::update() {
     uint32_t current_time = lv_tick_get();
     
-    // Update every 10 minutes (600000ms) since year progress changes slowly
-    if (current_time - _last_update >= 600000) {
+    // Update every second (1000ms)
+    if (current_time - _last_update >= 1000) {
         updateYearProgress();
         _last_update = current_time;
     }
@@ -155,6 +155,25 @@ void YearProgressCard::onEvent(const Event& event) {
 }
 
 void YearProgressCard::requestTimeSync() {
+    // Check WiFi connection status
+    if (!isWiFiConnected()) {
+        if (_retry_count < MAX_RETRIES) {
+            _retry_count++;
+            Serial.printf("YearProgressCard: WiFi not connected, retry %d/%d\n", _retry_count, MAX_RETRIES);
+            
+            // Schedule retry after 2 seconds
+            _last_ntp_sync = lv_tick_get() - 300000 + 2000; // Retry in 2 seconds
+            return;
+        } else {
+            // Max retries reached
+            Serial.println("YearProgressCard: Max retries reached, WiFi not connected");
+            return;
+        }
+    }
+    
+    // WiFi is connected, reset retry count
+    _retry_count = 0;
+    
     Serial.printf("YearProgressCard: Requesting time sync for %s (UTC%+d)\n", 
                   _timezone_config.name.c_str(), 
                   _timezone_config.utc_offset_hours);
