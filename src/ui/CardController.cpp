@@ -2,7 +2,9 @@
 #include "ui/PaddleCard.h"
 #include "ui/ClockCard.h"
 #include "ui/WeatherCard.h"
+#include "nowplaying/NowPlayingClient.h"
 #include <algorithm>
+#include <time.h>
 
 QueueHandle_t CardController::uiQueue = nullptr;
 
@@ -119,6 +121,17 @@ void CardController::initialize(DisplayInterface* display) {
             event.type == EventType::WIFI_CONNECTION_FAILED ||
             event.type == EventType::WIFI_AP_STARTED) {
             handleWiFiEvent(event);
+        }
+    });
+    
+    // Subscribe to card API request events (handled on Core 0)
+    eventQueue.subscribe([this](const Event& event) {
+        if (event.type == EventType::WEATHER_REQUEST) {
+            handleWeatherRequest(event);
+        } else if (event.type == EventType::NOW_PLAYING_REQUEST) {
+            handleNowPlayingRequest(event);
+        } else if (event.type == EventType::TIME_SYNC_REQUEST) {
+            handleTimeSyncRequest(event);
         }
     });
 }
@@ -395,7 +408,7 @@ void CardController::initializeCardTypes() {
     clockDef.configInputLabel = "Timezone (Seoul, New York, London, Tokyo, Los Angeles, Sydney)";
     clockDef.uiDescription = "A digital clock displaying time, date, and AM/PM with timezone support";
     clockDef.factory = [this](const String& configValue) -> lv_obj_t* {
-        ClockCard* newCard = new ClockCard(screen, configValue.isEmpty() ? "Seoul" : configValue);
+        ClockCard* newCard = new ClockCard(screen, eventQueue, configValue.isEmpty() ? "Seoul" : configValue);
         
         if (newCard && newCard->getCard()) {
             // Add to unified tracking system
@@ -421,7 +434,7 @@ void CardController::initializeCardTypes() {
     weatherDef.configInputLabel = "City name (e.g., Seoul, New York, London)";
     weatherDef.uiDescription = "Display current weather information for a city";
     weatherDef.factory = [this](const String& configValue) -> lv_obj_t* {
-        WeatherCard* newCard = new WeatherCard(screen, configValue.isEmpty() ? "Seoul" : configValue);
+        WeatherCard* newCard = new WeatherCard(screen, eventQueue, configValue.isEmpty() ? "Seoul" : configValue);
         
         if (newCard && newCard->getCard()) {
             // Set weather client
@@ -456,7 +469,7 @@ void CardController::initializeCardTypes() {
             return nullptr;
         }
         
-        NowPlayingCard* newCard = new NowPlayingCard(screen, configValue);
+        NowPlayingCard* newCard = new NowPlayingCard(screen, eventQueue, configValue);
         
         if (newCard && newCard->getCard()) {
             // Add to unified tracking system
@@ -483,7 +496,7 @@ void CardController::initializeCardTypes() {
     yearProgressDef.configInputLabel = "Timezone (Seoul, New York, London, Tokyo, Los Angeles, Sydney)";
     yearProgressDef.uiDescription = "Shows progress through the current year with timezone support";
     yearProgressDef.factory = [this](const String& configValue) -> lv_obj_t* {
-        YearProgressCard* newCard = new YearProgressCard(screen, configValue.isEmpty() ? "Seoul" : configValue);
+        YearProgressCard* newCard = new YearProgressCard(screen, eventQueue, configValue.isEmpty() ? "Seoul" : configValue);
         
         if (newCard && newCard->getCard()) {
             // Add to unified tracking system
@@ -702,4 +715,134 @@ void CardController::handleCardTitleUpdated(const Event& event) {
             break;
         }
     }
+}
+
+void CardController::handleWeatherRequest(const Event& event) {
+    Serial.printf("CardController: Processing weather request for %s\n", event.data.c_str());
+    
+    // Create response event
+    Event responseEvent;
+    responseEvent.type = EventType::WEATHER_DATA_RECEIVED;
+    responseEvent.cardId = event.cardId;
+    responseEvent.success = false;
+    responseEvent.data = "";
+    
+    try {
+        // Make weather API call using the existing weatherClient
+        WeatherData weatherData;
+        bool success = weatherClient.fetchWeatherData(event.data, weatherData);
+        
+        responseEvent.success = success;
+        
+        if (success && weatherData.valid) {
+            // Format data as: "city|temp|main|feels_like|humidity"
+            responseEvent.data = weatherData.city + "|" + 
+                               String(weatherData.temperature, 1) + "|" +
+                               weatherData.main + "|" +
+                               String(weatherData.feels_like, 1) + "|" +
+                               String(weatherData.humidity);
+            Serial.printf("CardController: Weather data retrieved successfully for %s\n", weatherData.city.c_str());
+        } else {
+            Serial.printf("CardController: Failed to retrieve weather data for %s\n", event.data.c_str());
+        }
+    } catch (...) {
+        Serial.printf("CardController: Exception occurred while fetching weather data for %s\n", event.data.c_str());
+        responseEvent.success = false;
+        responseEvent.data = "";
+    }
+    
+    // Publish response event
+    eventQueue.publishEvent(responseEvent);
+}
+
+void CardController::handleNowPlayingRequest(const Event& event) {
+    Serial.printf("CardController: Processing now playing request for %s\n", event.data.c_str());
+    
+    // Create response event
+    Event responseEvent;
+    responseEvent.type = EventType::NOW_PLAYING_DATA_RECEIVED;
+    responseEvent.cardId = event.cardId;
+    responseEvent.success = false;
+    responseEvent.data = "";
+    
+    try {
+        // Create a temporary NowPlayingClient if needed
+        // Note: This might need to be refactored based on your NowPlayingClient implementation
+        NowPlayingClient tempClient(event.data);
+        NowPlayingData nowPlayingData;
+        bool success = tempClient.fetchNowPlayingData(nowPlayingData);
+        
+        responseEvent.success = success;
+        
+        if (success) {
+            // Format data as: "title|artist|album"
+            responseEvent.data = nowPlayingData.title + "|" + 
+                               nowPlayingData.artist + "|" +
+                               nowPlayingData.album;
+            Serial.printf("CardController: Now playing data retrieved: %s by %s\n", 
+                         nowPlayingData.title.c_str(), nowPlayingData.artist.c_str());
+        } else {
+            Serial.printf("CardController: Failed to retrieve now playing data for %s\n", event.data.c_str());
+        }
+    } catch (...) {
+        Serial.printf("CardController: Exception occurred while fetching now playing data for %s\n", event.data.c_str());
+        responseEvent.success = false;
+        responseEvent.data = "";
+    }
+    
+    // Publish response event
+    eventQueue.publishEvent(responseEvent);
+}
+
+void CardController::handleTimeSyncRequest(const Event& event) {
+    Serial.printf("CardController: Processing time sync request: %s\n", event.data.c_str());
+    
+    // Parse timezone data: "timezone_name|utc_offset_hours"
+    int pipeIndex = event.data.indexOf('|');
+    bool success = false;
+    
+    if (pipeIndex != -1) {
+        String timezoneName = event.data.substring(0, pipeIndex);
+        int utcOffsetHours = event.data.substring(pipeIndex + 1).toInt();
+        
+        Serial.printf("CardController: Configuring NTP for %s (UTC%+d)\n", timezoneName.c_str(), utcOffsetHours);
+        
+        // Configure NTP time sync
+        long gmtOffset_sec = utcOffsetHours * 3600;
+        long daylightOffset_sec = 0;  // Simplified DST handling
+        
+        // Adjust for current DST if needed (simplified)
+        time_t now;
+        time(&now);
+        struct tm * timeinfo = gmtime(&now);
+        bool is_summer = (timeinfo->tm_mon >= 3 && timeinfo->tm_mon <= 9); // Apr-Oct roughly
+        
+        if (timezoneName == "New York" && is_summer) {
+            daylightOffset_sec = 3600; // EDT is UTC-4
+        } else if (timezoneName == "London" && is_summer) {
+            daylightOffset_sec = 3600; // BST is UTC+1
+        } else if (timezoneName == "Los Angeles" && is_summer) {
+            daylightOffset_sec = 3600; // PDT is UTC-7
+        } else if (timezoneName == "Sydney" && !is_summer) {
+            daylightOffset_sec = 3600; // AEDT in their summer
+        }
+        
+        // Configure NTP with direct offsets
+        configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.nist.gov");
+        success = true;
+        
+        Serial.printf("CardController: NTP configured with %ld second offset from UTC\n", gmtOffset_sec + daylightOffset_sec);
+    } else {
+        Serial.println("CardController: Invalid time sync request format");
+    }
+    
+    // Create response event
+    Event responseEvent;
+    responseEvent.type = EventType::TIME_SYNC_COMPLETE;
+    responseEvent.cardId = event.cardId;
+    responseEvent.success = success;
+    responseEvent.data = "";
+    
+    // Publish response event
+    eventQueue.publishEvent(responseEvent);
 } 

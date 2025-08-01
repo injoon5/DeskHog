@@ -3,10 +3,11 @@
 #include <lvgl.h>
 #include "InputHandler.h"
 #include "../nowplaying/NowPlayingClient.h"
+#include "EventQueue.h"
 
 class NowPlayingCard : public InputHandler {
 public:
-    NowPlayingCard(lv_obj_t* parent, const String& username_config);
+    NowPlayingCard(lv_obj_t* parent, EventQueue& eventQueue, const String& username_config);
     ~NowPlayingCard();
     
     lv_obj_t* getCard() const { return _card; }
@@ -18,11 +19,15 @@ public:
     void setNowPlayingClient(NowPlayingClient* client) { _nowPlayingClient = client; }
 
 private:
+    void onEvent(const Event& event);
     void updateNowPlayingDisplay(const NowPlayingData& data);
     void showError(const String& message);
     void hideError();
     void requestNowPlayingUpdate();
+    bool isWiFiConnected();
     String truncateText(const String& text, const lv_font_t* font, int maxWidth);
+    
+    EventQueue& _event_queue;
     
     lv_obj_t* _card;
     lv_obj_t* _title_container;

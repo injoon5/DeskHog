@@ -4,8 +4,8 @@
 #include "../hardware/Input.h"
 #include <WiFi.h>
 
-WeatherCard::WeatherCard(lv_obj_t* parent, const String& city_config) 
-    : _card(nullptr), _temp_label(nullptr), _main_label(nullptr), 
+WeatherCard::WeatherCard(lv_obj_t* parent, EventQueue& eventQueue, const String& city_config) 
+    : _event_queue(eventQueue), _card(nullptr), _temp_label(nullptr), _main_label(nullptr), 
       _feels_like_label(nullptr), _humidity_label(nullptr), 
       _left_container(nullptr), _right_container(nullptr), _error_label(nullptr),
       _city_name_label(nullptr),
@@ -87,6 +87,13 @@ WeatherCard::WeatherCard(lv_obj_t* parent, const String& city_config)
     lv_obj_set_style_text_align(_error_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(_error_label, LV_ALIGN_TOP_MID, 0, 5);
     lv_obj_add_flag(_error_label, LV_OBJ_FLAG_HIDDEN);
+    
+    // Subscribe to weather events
+    _event_queue.subscribe([this](const Event& event) {
+        if (event.type == EventType::WEATHER_DATA_RECEIVED && event.cardId == "weather") {
+            this->onEvent(event);
+        }
+    });
     
     // Set initial display
     lv_label_set_text(_temp_label, "--°C");
@@ -186,39 +193,63 @@ void WeatherCard::hideError() {
     }
 }
 
-void WeatherCard::requestWeatherUpdate() {
-    if (!_weatherClient) {
-        if (_retry_count < MAX_RETRIES) {
-            _retry_count++;
-            Serial.printf("WeatherCard: No weather client set, retry %d/%d\n", _retry_count, MAX_RETRIES);
+void WeatherCard::onEvent(const Event& event) {
+    if (event.type == EventType::WEATHER_DATA_RECEIVED) {
+        if (event.success && !event.data.isEmpty()) {
+            // Parse the JSON-like data to WeatherData structure
+            WeatherData weatherData;
+            // Simple parsing - in a real implementation you'd use ArduinoJson
+            // For now, assume the data format is "city|temp|main|feels_like|humidity"
+            int firstPipe = event.data.indexOf('|');
+            int secondPipe = event.data.indexOf('|', firstPipe + 1);
+            int thirdPipe = event.data.indexOf('|', secondPipe + 1);
+            int fourthPipe = event.data.indexOf('|', thirdPipe + 1);
             
-            // Show loading message on first attempt, or retry message on subsequent attempts
-            lv_label_set_text(_temp_label, "--°C");
-            lv_label_set_text(_main_label, "---");
-
-            
-            // Schedule retry after 2 seconds
-            _last_update = millis() - UPDATE_INTERVAL + 2000;
-            return;
-        } else {
-            // Max retries reached, show error
-            if (!_error_shown) {
-                showError("No Client Set");
+            if (firstPipe != -1 && secondPipe != -1 && thirdPipe != -1 && fourthPipe != -1) {
+                weatherData.city = event.data.substring(0, firstPipe);
+                weatherData.temperature = event.data.substring(firstPipe + 1, secondPipe).toFloat();
+                weatherData.main = event.data.substring(secondPipe + 1, thirdPipe);
+                weatherData.feels_like = event.data.substring(thirdPipe + 1, fourthPipe).toFloat();
+                weatherData.humidity = event.data.substring(fourthPipe + 1).toInt();
+                weatherData.valid = true;
+                
+                Serial.printf("WeatherCard: Weather data received: %s: %.1f°C, %s\n", 
+                              weatherData.city.c_str(), weatherData.temperature, weatherData.main.c_str());
+                updateWeatherDisplay(weatherData);
+                hideError();
+                _has_data = true;
+            } else {
+                Serial.println("WeatherCard: Invalid weather data format received");
+                if (!_has_data) {
+                    showError("Invalid data");
+                }
             }
-            return;
+        } else {
+            Serial.println("WeatherCard: Failed to receive weather data");
+            if (!_has_data) {
+                showError("Failed to fetch weather");
+            }
         }
     }
-    
-    if (!_weatherClient->isReady()) {
+}
+
+void WeatherCard::requestWeatherUpdate() {
+    // Check WiFi connection status
+    if (!isWiFiConnected()) {
         if (_retry_count < MAX_RETRIES) {
             _retry_count++;
-            Serial.printf("WeatherCard: WiFi not ready, retry %d/%d\n", _retry_count, MAX_RETRIES);
+            Serial.printf("WeatherCard: WiFi not connected, retry %d/%d\n", _retry_count, MAX_RETRIES);
             
-            // Show loading message on first attempt, or retry message on subsequent attempts
-
-            lv_label_set_text(_temp_label, "--°C");
-            lv_label_set_text(_main_label, "---");
-
+            // Show connection status
+            if (!_has_data) {
+                if (_retry_count == 1) {
+                    lv_label_set_text(_temp_label, "--°C");
+                    lv_label_set_text(_main_label, "Connecting...");
+                } else {
+                    String retryMsg = "Retry " + String(_retry_count) + "/" + String(MAX_RETRIES);
+                    lv_label_set_text(_main_label, retryMsg.c_str());
+                }
+            }
             
             // Schedule retry after 2 seconds
             _last_update = millis() - UPDATE_INTERVAL + 2000;
@@ -232,23 +263,24 @@ void WeatherCard::requestWeatherUpdate() {
         }
     }
     
-    // WiFi and client are ready, reset retry count
+    // WiFi is connected, reset retry count
     _retry_count = 0;
     
     Serial.printf("WeatherCard: Requesting weather for %s\n", _city_config.c_str());
     
-    WeatherData weatherData;
-    if (_weatherClient->fetchWeatherData(_city_config, weatherData)) {
-        Serial.printf("WeatherCard: Weather fetched successfully for %s: %.1f°C, %s\n", 
-                      weatherData.city.c_str(), weatherData.temperature, weatherData.main.c_str());
-        updateWeatherDisplay(weatherData);
-        hideError();
-        _has_data = true;
-        _last_update = millis(); // Update timestamp on successful fetch
-    } else {
-        Serial.printf("WeatherCard: Failed to fetch weather for %s\n", _city_config.c_str());
-        if (!_has_data) {
-            showError("Failed to fetch weather");
-        }
+    // Show loading state
+    if (!_has_data) {
+        lv_label_set_text(_temp_label, "--°C");
+        lv_label_set_text(_main_label, "Loading...");
     }
+    
+    // Publish event to request weather data (will be handled by Core 0)
+    Event weatherEvent = Event::createCardEvent(EventType::WEATHER_REQUEST, "weather", _city_config);
+    _event_queue.publishEvent(weatherEvent);
+    
+    _last_update = millis(); // Update timestamp when request is made
+}
+
+bool WeatherCard::isWiFiConnected() {
+    return WiFi.status() == WL_CONNECTED;
 }

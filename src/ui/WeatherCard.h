@@ -3,10 +3,11 @@
 #include <lvgl.h>
 #include "InputHandler.h"
 #include "../weather/WeatherClient.h"
+#include "EventQueue.h"
 
 class WeatherCard : public InputHandler {
 public:
-    WeatherCard(lv_obj_t* parent, const String& city_config = "Seoul");
+    WeatherCard(lv_obj_t* parent, EventQueue& eventQueue, const String& city_config = "Seoul");
     ~WeatherCard();
     
     lv_obj_t* getCard() const { return _card; }
@@ -18,10 +19,14 @@ public:
     void setWeatherClient(WeatherClient* client) { _weatherClient = client; }
 
 private:
+    void onEvent(const Event& event);
     void updateWeatherDisplay(const WeatherData& weatherData);
     void showError(const String& message);
     void hideError();
     void requestWeatherUpdate();
+    bool isWiFiConnected();
+    
+    EventQueue& _event_queue;
     
     lv_obj_t* _card;
     lv_obj_t* _temp_label;

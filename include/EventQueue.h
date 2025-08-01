@@ -25,7 +25,13 @@ enum class EventType {
     OTA_PROCESS_START,
     OTA_PROCESS_END,
     CARD_CONFIG_CHANGED,
-    CARD_TITLE_UPDATED
+    CARD_TITLE_UPDATED,
+    TIME_SYNC_REQUEST,
+    TIME_SYNC_COMPLETE,
+    WEATHER_REQUEST,
+    WEATHER_DATA_RECEIVED,
+    NOW_PLAYING_REQUEST,
+    NOW_PLAYING_DATA_RECEIVED
 };
 
 /**
@@ -37,16 +43,19 @@ struct Event {
     std::shared_ptr<InsightParser> parser;  // Optional parsed insight data
     String jsonData;                        // Raw JSON data for insights
     String title;                           // Title/name for card title updates
+    String cardId;                          // Generic card identifier
+    String data;                            // Generic data payload
+    bool success;                           // Success/failure flag
     
-    Event() {}
+    Event() : success(false) {}
     
-    Event(EventType t, const String& id) : type(t), insightId(id), parser(nullptr) {}
+    Event(EventType t, const String& id) : type(t), insightId(id), parser(nullptr), success(false) {}
     
     Event(EventType t, const String& id, std::shared_ptr<InsightParser> p)
-        : type(t), insightId(id), parser(p) {}
+        : type(t), insightId(id), parser(p), success(false) {}
         
     Event(EventType t, const String& id, const String& json)
-        : type(t), insightId(id), parser(nullptr), jsonData(json) {}
+        : type(t), insightId(id), parser(nullptr), jsonData(json), success(false) {}
         
     // Constructor for title update events
     static Event createTitleUpdateEvent(const String& id, const String& title_text) {
@@ -54,6 +63,16 @@ struct Event {
         e.type = EventType::CARD_TITLE_UPDATED;
         e.insightId = id;
         e.title = title_text;
+        return e;
+    }
+    
+    // Constructor for generic card events
+    static Event createCardEvent(EventType eventType, const String& card_id, const String& payload = "", bool is_success = false) {
+        Event e;
+        e.type = eventType;
+        e.cardId = card_id;
+        e.data = payload;
+        e.success = is_success;
         return e;
     }
 };

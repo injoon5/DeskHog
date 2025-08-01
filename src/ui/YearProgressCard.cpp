@@ -4,8 +4,8 @@
 #include <sys/time.h>
 #include <WiFi.h>
 
-YearProgressCard::YearProgressCard(lv_obj_t* parent, const String& timezone_config) 
-    : _card(nullptr), _year_label(nullptr), _progress_bar(nullptr), 
+YearProgressCard::YearProgressCard(lv_obj_t* parent, EventQueue& eventQueue, const String& timezone_config) 
+    : _event_queue(eventQueue), _card(nullptr), _year_label(nullptr), _progress_bar(nullptr), 
       _last_update(0), _last_ntp_sync(0), _current_year(0), _ntp_initialized(false) {
     
     // Initialize timezone configuration
@@ -63,8 +63,15 @@ YearProgressCard::YearProgressCard(lv_obj_t* parent, const String& timezone_conf
     lv_obj_set_style_pad_all(_progress_bar, 0, 0);
     lv_obj_set_style_radius(_progress_bar, 0, 0);
     
-    // Initialize NTP and initial update
-    initializeNTP();
+    // Subscribe to time sync events
+    _event_queue.subscribe([this](const Event& event) {
+        if (event.type == EventType::TIME_SYNC_COMPLETE && event.cardId == "yearprogress") {
+            this->onEvent(event);
+        }
+    });
+    
+    // Request initial time sync
+    requestTimeSync();
     updateYearProgress();
 }
 
@@ -86,10 +93,10 @@ bool YearProgressCard::update() {
         _last_update = current_time;
     }
     
-    // Sync NTP every 5 minutes if connected
+    // Request NTP sync every 5 minutes if connected
     if (current_time - _last_ntp_sync >= 300000) { // 5 minutes
         if (isWiFiConnected()) {
-            initializeNTP();
+            requestTimeSync();
             _last_ntp_sync = current_time;
         }
     }
@@ -135,45 +142,27 @@ float YearProgressCard::calculateYearProgress() {
     return total_progress;
 }
 
-void YearProgressCard::initializeNTP() {
-    if (!isWiFiConnected()) {
-        Serial.println("WiFi not connected, skipping NTP init");
-        return;
+void YearProgressCard::onEvent(const Event& event) {
+    if (event.type == EventType::TIME_SYNC_COMPLETE) {
+        _ntp_initialized = event.success;
+        if (event.success) {
+            Serial.println("YearProgressCard: Time sync completed successfully");
+        } else {
+            Serial.println("YearProgressCard: Time sync failed");
+        }
+        updateYearProgress();
     }
-    
-    Serial.printf("Initializing NTP for %s (UTC%+d)\n", 
+}
+
+void YearProgressCard::requestTimeSync() {
+    Serial.printf("YearProgressCard: Requesting time sync for %s (UTC%+d)\n", 
                   _timezone_config.name.c_str(), 
                   _timezone_config.utc_offset_hours);
     
-    // Use direct GMT offset in seconds instead of POSIX strings
-    long gmtOffset_sec = _timezone_config.utc_offset_hours * 3600;
-    long daylightOffset_sec = 0;  // Start with no DST, add later if needed
-    
-    // Adjust for current DST if needed (simplified - just for summer months)
-    time_t now;
-    time(&now);
-    struct tm * timeinfo = gmtime(&now);
-    bool is_summer = (timeinfo->tm_mon >= 3 && timeinfo->tm_mon <= 9); // Apr-Oct roughly
-    
-    if (_timezone_config.name == "New York" && is_summer) {
-        daylightOffset_sec = 3600; // EDT is UTC-4, so add 1 hour to EST offset
-    } else if (_timezone_config.name == "London" && is_summer) {
-        daylightOffset_sec = 3600; // BST is UTC+1
-    } else if (_timezone_config.name == "Los Angeles" && is_summer) {
-        daylightOffset_sec = 3600; // PDT is UTC-7, so add 1 hour to PST offset
-    } else if (_timezone_config.name == "Sydney" && !is_summer) {
-        daylightOffset_sec = 3600; // AEDT in their summer (our winter)
-    }
-    
-    Serial.printf("Using GMT offset: %ld sec, DST offset: %ld sec\n", gmtOffset_sec, daylightOffset_sec);
-    
-    // Configure NTP with direct offsets
-    configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.nist.gov");
-    
-    _ntp_initialized = true;
-    _last_ntp_sync = lv_tick_get();
-    
-    Serial.printf("NTP configured with %ld second offset from UTC\n", gmtOffset_sec + daylightOffset_sec);
+    // Publish event to request time sync (will be handled by Core 0)
+    Event timeSyncEvent = Event::createCardEvent(EventType::TIME_SYNC_REQUEST, "yearprogress", 
+        _timezone_config.name + "|" + String(_timezone_config.utc_offset_hours));
+    _event_queue.publishEvent(timeSyncEvent);
 }
 
 bool YearProgressCard::isWiFiConnected() {

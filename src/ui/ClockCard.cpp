@@ -7,8 +7,8 @@
 #include <cstdio>
 #include <WiFi.h>
 
-ClockCard::ClockCard(lv_obj_t* parent, const String& timezone_config) 
-    : _card(nullptr), _time_label(nullptr), _date_label(nullptr), 
+ClockCard::ClockCard(lv_obj_t* parent, EventQueue& eventQueue, const String& timezone_config) 
+    : _event_queue(eventQueue), _card(nullptr), _time_label(nullptr), _date_label(nullptr), 
       _ampm_label(nullptr), _weekday_label(nullptr), _left_container(nullptr), _error_label(nullptr),
       _progress_bar(nullptr), _last_update(0), _last_ntp_sync(0), _ntp_initialized(false), 
       _time_synced(false), _error_shown(false) {
@@ -100,8 +100,15 @@ ClockCard::ClockCard(lv_obj_t* parent, const String& timezone_config)
     lv_obj_set_style_pad_all(_progress_bar, 0, 0);
     lv_obj_set_style_radius(_progress_bar, 0, 0);
     
-    // Initialize NTP and initial time update
-    initializeNTP();
+    // Subscribe to time sync events
+    _event_queue.subscribe([this](const Event& event) {
+        if (event.type == EventType::TIME_SYNC_COMPLETE && event.cardId == "clock") {
+            this->onEvent(event);
+        }
+    });
+    
+    // Request initial time sync
+    requestTimeSync();
     updateTime();
 }
 
@@ -123,10 +130,10 @@ bool ClockCard::update() {
         _last_update = current_time;
     }
     
-    // Sync NTP every 5 minutes if connected
+    // Request NTP sync every 5 minutes if connected
     if (current_time - _last_ntp_sync >= 300000) { // 5 minutes
         if (isWiFiConnected()) {
-            initializeNTP();
+            requestTimeSync();
             _last_ntp_sync = current_time;
         }
     }
@@ -146,9 +153,9 @@ void ClockCard::updateTime() {
             hideError();
         }
         
-        // Initialize NTP if not done yet
+        // Request NTP sync if not done yet
         if (!_ntp_initialized) {
-            initializeNTP();
+            requestTimeSync();
         }
     }
     
@@ -223,46 +230,27 @@ void ClockCard::formatWeekday() {
     strcpy(_weekday_str, weekdays[timeinfo.tm_wday]);
 }
 
-void ClockCard::initializeNTP() {
-    if (!isWiFiConnected()) {
-        Serial.println("WiFi not connected, skipping NTP init");
-        return;
+void ClockCard::onEvent(const Event& event) {
+    if (event.type == EventType::TIME_SYNC_COMPLETE) {
+        _ntp_initialized = event.success;
+        if (event.success) {
+            Serial.println("ClockCard: Time sync completed successfully");
+        } else {
+            Serial.println("ClockCard: Time sync failed");
+        }
+        updateTime();
     }
-    
-    Serial.printf("Initializing NTP for %s (UTC%+d)\n", 
+}
+
+void ClockCard::requestTimeSync() {
+    Serial.printf("ClockCard: Requesting time sync for %s (UTC%+d)\n", 
                   _timezone_config.name.c_str(), 
                   _timezone_config.utc_offset_hours);
     
-    // Use direct GMT offset in seconds instead of POSIX strings
-    // ESP32 configTime(gmtOffset_sec, daylightOffset_sec, server1, server2, server3)
-    long gmtOffset_sec = _timezone_config.utc_offset_hours * 3600;
-    long daylightOffset_sec = 0;  // Start with no DST, add later if needed
-    
-    // Adjust for current DST if needed (simplified - just for summer months)
-    time_t now;
-    time(&now);
-    struct tm * timeinfo = gmtime(&now);
-    bool is_summer = (timeinfo->tm_mon >= 3 && timeinfo->tm_mon <= 9); // Apr-Oct roughly
-    
-    if (_timezone_config.name == "New York" && is_summer) {
-        daylightOffset_sec = 3600; // EDT is UTC-4, so add 1 hour to EST offset
-    } else if (_timezone_config.name == "London" && is_summer) {
-        daylightOffset_sec = 3600; // BST is UTC+1
-    } else if (_timezone_config.name == "Los Angeles" && is_summer) {
-        daylightOffset_sec = 3600; // PDT is UTC-7, so add 1 hour to PST offset
-    } else if (_timezone_config.name == "Sydney" && !is_summer) {
-        daylightOffset_sec = 3600; // AEDT in their summer (our winter)
-    }
-    
-    Serial.printf("Using GMT offset: %ld sec, DST offset: %ld sec\n", gmtOffset_sec, daylightOffset_sec);
-    
-    // Configure NTP with direct offsets
-    configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.nist.gov");
-    
-    _ntp_initialized = true;
-    _last_ntp_sync = lv_tick_get();
-    
-    Serial.printf("NTP configured with %ld second offset from UTC\n", gmtOffset_sec + daylightOffset_sec);
+    // Publish event to request time sync (will be handled by Core 0)
+    Event timeSyncEvent = Event::createCardEvent(EventType::TIME_SYNC_REQUEST, "clock", 
+        _timezone_config.name + "|" + String(_timezone_config.utc_offset_hours));
+    _event_queue.publishEvent(timeSyncEvent);
 }
 
 bool ClockCard::isWiFiConnected() {

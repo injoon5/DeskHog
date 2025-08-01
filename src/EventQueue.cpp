@@ -67,7 +67,7 @@ void EventQueue::begin() {
         xTaskCreate(
             eventProcessingTask,
             "EventQueueTask",
-            4096,           // Stack size (adjust as needed)
+            8192,           // Stack size increased for network operations
             this,           // Task parameter
             tskIDLE_PRIORITY + 1,  // Priority (adjust as needed)
             &taskHandle     // Task handle

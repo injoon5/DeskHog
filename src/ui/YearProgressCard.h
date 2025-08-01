@@ -3,10 +3,11 @@
 #include <lvgl.h>
 #include "InputHandler.h"
 #include "../config/CardConfig.h"
+#include "EventQueue.h"
 
 class YearProgressCard : public InputHandler {
 public:
-    YearProgressCard(lv_obj_t* parent, const String& timezone_config = "Seoul");
+    YearProgressCard(lv_obj_t* parent, EventQueue& eventQueue, const String& timezone_config = "Seoul");
     ~YearProgressCard();
     
     lv_obj_t* getCard() const { return _card; }
@@ -16,10 +17,13 @@ public:
     void prepareForRemoval() override { _card = nullptr; }
 
 private:
+    void onEvent(const Event& event);
     void updateYearProgress();
     float calculateYearProgress();
-    void initializeNTP();
+    void requestTimeSync();
     bool isWiFiConnected();
+    
+    EventQueue& _event_queue;
     
     lv_obj_t* _card;
     lv_obj_t* _year_label;

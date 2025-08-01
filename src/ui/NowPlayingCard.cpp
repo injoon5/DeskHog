@@ -2,9 +2,10 @@
 #include "Style.h"
 #include "../hardware/Input.h"
 #include <Arduino.h>
+#include <WiFi.h>
 
-NowPlayingCard::NowPlayingCard(lv_obj_t* parent, const String& username_config) 
-    : _username_config(username_config), _nowPlayingClient(nullptr), _last_update(0), 
+NowPlayingCard::NowPlayingCard(lv_obj_t* parent, EventQueue& eventQueue, const String& username_config) 
+    : _event_queue(eventQueue), _username_config(username_config), _nowPlayingClient(nullptr), _last_update(0), 
       _error_shown(false), _has_data(false), _retry_count(0) {
     
     _card = lv_obj_create(parent);
@@ -71,6 +72,13 @@ NowPlayingCard::NowPlayingCard(lv_obj_t* parent, const String& username_config)
     lv_obj_align(_error_label, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_flag(_error_label, LV_OBJ_FLAG_HIDDEN);
     
+    // Subscribe to now playing events
+    _event_queue.subscribe([this](const Event& event) {
+        if (event.type == EventType::NOW_PLAYING_DATA_RECEIVED && event.cardId == "nowplaying") {
+            this->onEvent(event);
+        }
+    });
+    
     // Create client with username
     _nowPlayingClient = new NowPlayingClient(_username_config);
     
@@ -108,23 +116,60 @@ bool NowPlayingCard::update() {
     return false;
 }
 
-void NowPlayingCard::requestNowPlayingUpdate() {
-    if (!_nowPlayingClient) {
-        Serial.println("NowPlayingCard: No client set");
-        return;
+void NowPlayingCard::onEvent(const Event& event) {
+    if (event.type == EventType::NOW_PLAYING_DATA_RECEIVED) {
+        if (event.success && !event.data.isEmpty()) {
+            // Parse the JSON data to NowPlayingData structure
+            NowPlayingData data;
+            // Simple parsing - in a real implementation you'd use ArduinoJson
+            // For now, assume the data format is "title|artist|album"
+            int firstPipe = event.data.indexOf('|');
+            int secondPipe = event.data.indexOf('|', firstPipe + 1);
+            
+            if (firstPipe != -1 && secondPipe != -1) {
+                data.title = event.data.substring(0, firstPipe);
+                data.artist = event.data.substring(firstPipe + 1, secondPipe);
+                data.album = event.data.substring(secondPipe + 1);
+                
+                Serial.printf("NowPlayingCard: Data received: %s by %s\n", 
+                              data.title.c_str(), data.artist.c_str());
+                updateNowPlayingDisplay(data);
+                hideError();
+                _has_data = true;
+            } else {
+                Serial.println("NowPlayingCard: Invalid data format received");
+                if (!_has_data) {
+                    showError("Invalid data");
+                }
+            }
+        } else {
+            Serial.println("NowPlayingCard: Failed to receive data");
+            if (!_has_data) {
+                showError("Failed to fetch data");
+            }
+        }
     }
-    
-    if (!_nowPlayingClient->isReady()) {
+}
+
+void NowPlayingCard::requestNowPlayingUpdate() {
+    // Check WiFi connection status
+    if (!isWiFiConnected()) {
         if (_retry_count < MAX_RETRIES) {
             _retry_count++;
-            Serial.printf("NowPlayingCard: WiFi not ready, retry %d/%d\n", _retry_count, MAX_RETRIES);
+            Serial.printf("NowPlayingCard: WiFi not connected, retry %d/%d\n", _retry_count, MAX_RETRIES);
             
-            // Show loading message on first attempt, or retry message on subsequent attempts
-            if (_retry_count == 1) {
-                lv_label_set_text(_title_label, "Connecting...");
-            } else {
-                String retryMsg = "Retry " + String(_retry_count) + "/" + String(MAX_RETRIES);
-                lv_label_set_text(_title_label, retryMsg.c_str());
+            // Show connection status
+            if (!_has_data) {
+                if (_retry_count == 1) {
+                    lv_label_set_text(_title_label, "Connecting...");
+                    lv_label_set_text(_album_label, "");
+                    lv_label_set_text(_artist_label, "");
+                } else {
+                    String retryMsg = "Retry " + String(_retry_count) + "/" + String(MAX_RETRIES);
+                    lv_label_set_text(_title_label, retryMsg.c_str());
+                    lv_label_set_text(_album_label, "");
+                    lv_label_set_text(_artist_label, "");
+                }
             }
             
             // Schedule retry after 2 seconds
@@ -139,25 +184,23 @@ void NowPlayingCard::requestNowPlayingUpdate() {
         }
     }
     
-    // WiFi is ready, reset retry count
+    // WiFi is connected, reset retry count
     _retry_count = 0;
     
     Serial.printf("NowPlayingCard: Requesting now playing for %s\n", _username_config.c_str());
     
-    NowPlayingData data;
-    if (_nowPlayingClient->fetchNowPlayingData(data)) {
-        Serial.printf("NowPlayingCard: Data fetched successfully: %s by %s\n", 
-                      data.title.c_str(), data.artist.c_str());
-        updateNowPlayingDisplay(data);
-        hideError();
-        _has_data = true;
-        _last_update = millis(); // Update timestamp on successful fetch
-    } else {
-        Serial.printf("NowPlayingCard: Failed to fetch data for %s\n", _username_config.c_str());
-        if (!_has_data) {
-            showError("Failed to fetch data");
-        }
+    // Show loading state
+    if (!_has_data) {
+        lv_label_set_text(_title_label, "Loading...");
+        lv_label_set_text(_album_label, "");
+        lv_label_set_text(_artist_label, "");
     }
+    
+    // Publish event to request now playing data (will be handled by Core 0)
+    Event nowPlayingEvent = Event::createCardEvent(EventType::NOW_PLAYING_REQUEST, "nowplaying", _username_config);
+    _event_queue.publishEvent(nowPlayingEvent);
+    
+    _last_update = millis(); // Update timestamp when request is made
 }
 
 void NowPlayingCard::updateNowPlayingDisplay(const NowPlayingData& data) {
@@ -233,4 +276,8 @@ String NowPlayingCard::truncateText(const String& text, const lv_font_t* font, i
     }
     
     return truncated;
+}
+
+bool NowPlayingCard::isWiFiConnected() {
+    return WiFi.status() == WL_CONNECTED;
 }

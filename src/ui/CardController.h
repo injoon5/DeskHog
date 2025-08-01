@@ -218,6 +218,24 @@ private:
      * @param event Event containing insight ID and new title
      */
     void handleCardTitleUpdated(const Event& event);
+    
+    /**
+     * @brief Handle weather data request events
+     * @param event Event containing city configuration
+     */
+    void handleWeatherRequest(const Event& event);
+    
+    /**
+     * @brief Handle now playing data request events
+     * @param event Event containing username configuration
+     */
+    void handleNowPlayingRequest(const Event& event);
+    
+    /**
+     * @brief Handle time sync request events
+     * @param event Event containing timezone configuration
+     */
+    void handleTimeSyncRequest(const Event& event);
 
     /**
      * @brief Initialize default card type registrations
