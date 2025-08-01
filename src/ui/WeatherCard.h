@@ -41,4 +41,8 @@ private:
     uint32_t _last_update;
     bool _error_shown;
     bool _has_data;
+    uint8_t _retry_count;
+    
+    static const uint32_t UPDATE_INTERVAL = 600000; // 10 minutes in ms
+    static const uint8_t MAX_RETRIES = 5;
 };

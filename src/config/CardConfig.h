@@ -15,7 +15,9 @@ enum class CardType {
     QUESTION,     ///< Question trivia card
     PADDLE,       ///< Paddle game card
     CLOCK,        ///< Digital clock card
-    WEATHER       ///< Weather information card
+    WEATHER,      ///< Weather information card
+    NOW_PLAYING,  ///< Now playing music card
+    YEAR_PROGRESS ///< Year progress visualization card
     // New card types can be added here
 };
 
@@ -89,6 +91,8 @@ inline String cardTypeToString(CardType type) {
         case CardType::PADDLE: return "PADDLE";
         case CardType::CLOCK: return "CLOCK";
         case CardType::WEATHER: return "WEATHER";
+        case CardType::NOW_PLAYING: return "NOW_PLAYING";
+        case CardType::YEAR_PROGRESS: return "YEAR_PROGRESS";
         default: return "UNKNOWN";
     }
 }
@@ -107,6 +111,8 @@ inline CardType stringToCardType(const String& str) {
     if (str == "PADDLE") return CardType::PADDLE;
     if (str == "CLOCK") return CardType::CLOCK;
     if (str == "WEATHER") return CardType::WEATHER;
+    if (str == "NOW_PLAYING") return CardType::NOW_PLAYING;
+    if (str == "YEAR_PROGRESS") return CardType::YEAR_PROGRESS;
     return CardType::INSIGHT; // Default fallback
 }
 

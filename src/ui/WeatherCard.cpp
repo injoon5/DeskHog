@@ -1,15 +1,16 @@
 #include "WeatherCard.h"
 #include "Style.h"
 #include "../fonts/fonts.h"
+#include "../hardware/Input.h"
 #include <WiFi.h>
 
 WeatherCard::WeatherCard(lv_obj_t* parent, const String& city_config) 
     : _card(nullptr), _temp_label(nullptr), _main_label(nullptr), 
       _feels_like_label(nullptr), _humidity_label(nullptr), 
       _left_container(nullptr), _right_container(nullptr), _error_label(nullptr),
-      _city_name_label(nullptr), left_top_container(nullptr), left_bottom_container(nullptr),
+      _city_name_label(nullptr),
       _city_config(city_config), _weatherClient(nullptr),
-      _last_update(0), _error_shown(false), _has_data(false) {
+      _last_update(0), _error_shown(false), _has_data(false), _retry_count(0) {
     
     // Create main card container
     _card = lv_obj_create(parent);
@@ -25,40 +26,21 @@ WeatherCard::WeatherCard(lv_obj_t* parent, const String& city_config)
     lv_obj_set_pos(_left_container, 0, 0);
     lv_obj_set_style_bg_opa(_left_container, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_left_container, 0, 0);
-    lv_obj_set_style_pad_all(_left_container, 0, 0);
+    lv_obj_set_style_pad_all(_left_container, 2, 0);
     lv_obj_set_style_radius(_left_container, 0, 0);
     lv_obj_set_flex_flow(_left_container, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(_left_container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(_left_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_gap(_left_container, 0, 0);
     
-    // Create top container for city name (height: 20, width: 130)
-    left_top_container = lv_obj_create(_left_container);
-    lv_obj_set_size(left_top_container, 130, 20);
-    lv_obj_set_style_bg_opa(left_top_container, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(left_top_container, 0, 0);
-    lv_obj_set_style_pad_all(left_top_container, 0, 0);
-    lv_obj_set_style_radius(left_top_container, 0, 0);
-    lv_obj_set_flex_flow(left_top_container, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(left_top_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    
-    // Create city name label in top container
-    _city_name_label = lv_label_create(left_top_container);
+    // Create city name label directly in left container
+    _city_name_label = lv_label_create(_left_container);
     lv_label_set_text(_city_name_label, "--");
     lv_obj_set_style_text_color(_city_name_label, lv_color_hex(0xD8D8D8), 0);
     lv_obj_set_style_text_font(_city_name_label, Style::valueFont(), 0);
     lv_obj_set_style_text_align(_city_name_label, LV_TEXT_ALIGN_CENTER, 0);
     
-    // Create bottom container for temperature (height: 45, width: 130)
-    left_bottom_container = lv_obj_create(_left_container);
-    lv_obj_set_size(left_bottom_container, 130, 45);
-    lv_obj_set_style_bg_opa(left_bottom_container, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(left_bottom_container, 0, 0);
-    lv_obj_set_style_pad_all(left_bottom_container, 0, 0);
-    lv_obj_set_style_radius(left_bottom_container, 0, 0);
-    lv_obj_set_flex_flow(left_bottom_container, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(left_bottom_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    
-    // Create temperature label in bottom container
-    _temp_label = lv_label_create(left_bottom_container);
+    // Create temperature label directly in left container
+    _temp_label = lv_label_create(_left_container);
     lv_label_set_text(_temp_label, "--°C");
     lv_obj_set_style_text_color(_temp_label, lv_color_white(), 0);
     lv_obj_set_style_text_font(_temp_label, Style::largestValueFont(), 0);
@@ -74,7 +56,7 @@ WeatherCard::WeatherCard(lv_obj_t* parent, const String& city_config)
     lv_obj_set_style_radius(_right_container, 0, 0);
     lv_obj_set_flex_flow(_right_container, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(_right_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_gap(_right_container, 5, 0);
+    lv_obj_set_style_pad_gap(_right_container, 2, 0);
     
     // Create weather main label (e.g., "Clear")
     _main_label = lv_label_create(_right_container);
@@ -106,6 +88,10 @@ WeatherCard::WeatherCard(lv_obj_t* parent, const String& city_config)
     lv_obj_align(_error_label, LV_ALIGN_TOP_MID, 0, 5);
     lv_obj_add_flag(_error_label, LV_OBJ_FLAG_HIDDEN);
     
+    // Set initial display
+    lv_label_set_text(_temp_label, "--°C");
+    lv_label_set_text(_main_label, "---");
+
     // Request initial weather data
     requestWeatherUpdate();
 }
@@ -115,20 +101,27 @@ WeatherCard::~WeatherCard() {
 }
 
 bool WeatherCard::handleButtonPress(uint8_t button_index) {
-    // Don't handle any button presses, allow navigation
-    return false;
+    // Handle center button press to refresh data
+    if (button_index == Input::BUTTON_CENTER) {
+        Serial.println("WeatherCard: Center button pressed, refreshing data");
+        _retry_count = 0; // Reset retry count for manual refresh
+        requestWeatherUpdate();
+        return true; // We handled the button press
+    }
+    
+    return false; // Let CardNavigationStack handle navigation buttons
 }
 
 bool WeatherCard::update() {
-    uint32_t current_time = lv_tick_get();
+    uint32_t now = millis();
     
-    // Update every 10 minutes (600000ms)
-    if (current_time - _last_update >= 600000) {
+    // Check if it's time to update
+    if (now - _last_update >= UPDATE_INTERVAL) {
         requestWeatherUpdate();
-        _last_update = current_time;
+        return true;
     }
     
-    return true; // Continue receiving updates
+    return false;
 }
 
 void WeatherCard::updateWeatherDisplay(const WeatherData& weatherData) {
@@ -175,6 +168,10 @@ void WeatherCard::updateWeatherDisplay(const WeatherData& weatherData) {
 }
 
 void WeatherCard::showError(const String& message) {
+    if (_has_data) {
+        return; // Don't show error if we have previous data
+    }
+    
     if (_error_label) {
         lv_label_set_text(_error_label, message.c_str());
         lv_obj_clear_flag(_error_label, LV_OBJ_FLAG_HIDDEN);
@@ -191,16 +188,52 @@ void WeatherCard::hideError() {
 
 void WeatherCard::requestWeatherUpdate() {
     if (!_weatherClient) {
-        Serial.println("WeatherCard: No weather client set");
-        return;
+        if (_retry_count < MAX_RETRIES) {
+            _retry_count++;
+            Serial.printf("WeatherCard: No weather client set, retry %d/%d\n", _retry_count, MAX_RETRIES);
+            
+            // Show loading message on first attempt, or retry message on subsequent attempts
+            lv_label_set_text(_temp_label, "--°C");
+            lv_label_set_text(_main_label, "---");
+
+            
+            // Schedule retry after 2 seconds
+            _last_update = millis() - UPDATE_INTERVAL + 2000;
+            return;
+        } else {
+            // Max retries reached, show error
+            if (!_error_shown) {
+                showError("No Client Set");
+            }
+            return;
+        }
     }
     
-    if (WiFi.status() != WL_CONNECTED) {
-        if (!_error_shown) {
-            showError("No Connection");
+    if (!_weatherClient->isReady()) {
+        if (_retry_count < MAX_RETRIES) {
+            _retry_count++;
+            Serial.printf("WeatherCard: WiFi not ready, retry %d/%d\n", _retry_count, MAX_RETRIES);
+            
+            // Show loading message on first attempt, or retry message on subsequent attempts
+
+            lv_label_set_text(_temp_label, "--°C");
+            lv_label_set_text(_main_label, "---");
+
+            
+            // Schedule retry after 2 seconds
+            _last_update = millis() - UPDATE_INTERVAL + 2000;
+            return;
+        } else {
+            // Max retries reached, show error
+            if (!_error_shown) {
+                showError("No Connection");
+            }
+            return;
         }
-        return;
     }
+    
+    // WiFi and client are ready, reset retry count
+    _retry_count = 0;
     
     Serial.printf("WeatherCard: Requesting weather for %s\n", _city_config.c_str());
     
@@ -209,9 +242,13 @@ void WeatherCard::requestWeatherUpdate() {
         Serial.printf("WeatherCard: Weather fetched successfully for %s: %.1f°C, %s\n", 
                       weatherData.city.c_str(), weatherData.temperature, weatherData.main.c_str());
         updateWeatherDisplay(weatherData);
+        hideError();
+        _has_data = true;
+        _last_update = millis(); // Update timestamp on successful fetch
     } else {
         Serial.printf("WeatherCard: Failed to fetch weather for %s\n", _city_config.c_str());
-        WeatherData emptyData; // Will have valid = false
-        updateWeatherDisplay(emptyData);
+        if (!_has_data) {
+            showError("Failed to fetch weather");
+        }
     }
 }

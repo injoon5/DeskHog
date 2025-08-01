@@ -40,8 +40,8 @@ ClockCard::ClockCard(lv_obj_t* parent, const String& timezone_config)
     lv_obj_set_style_radius(_left_container, 0, 0);
     lv_obj_set_flex_flow(_left_container, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(_left_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_gap(_left_container, 5, 0);  // Reduce gap between items
-    
+    lv_obj_set_style_pad_gap(_left_container, 0, 0);  // Reduce gap between items
+
     // Create weekday label in left container (top)
     _weekday_label = lv_label_create(_left_container);
     lv_label_set_text(_weekday_label, _weekday_str);
@@ -66,7 +66,8 @@ ClockCard::ClockCard(lv_obj_t* parent, const String& timezone_config)
     lv_obj_set_style_radius(right_container, 0, 0);
     lv_obj_set_flex_flow(right_container, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(right_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    
+    lv_obj_set_style_pad_gap(right_container, -3, 0);
+
     // Create AM/PM label in right container (top of vertical stack)
     _ampm_label = lv_label_create(right_container);
     lv_label_set_text(_ampm_label, _ampm_str);
@@ -90,10 +91,10 @@ ClockCard::ClockCard(lv_obj_t* parent, const String& timezone_config)
     lv_obj_align(_error_label, LV_ALIGN_TOP_MID, 0, 5);
     lv_obj_add_flag(_error_label, LV_OBJ_FLAG_HIDDEN);
     
-    // Create progress bar at bottom (3px height, white)
+    // Create progress bar at bottom (2px height, white)
     _progress_bar = lv_obj_create(_card);
-    lv_obj_set_size(_progress_bar, 0, 3);  // Start with 0 width, 3px height
-    lv_obj_set_pos(_progress_bar, 0, 132); // Position at bottom (135-3=132)
+    lv_obj_set_size(_progress_bar, 0, 2);  // Start with 0 width, 2px height
+    lv_obj_set_pos(_progress_bar, 0, 133); // Position at bottom (135-2=133)
     lv_obj_set_style_bg_color(_progress_bar, lv_color_white(), 0);
     lv_obj_set_style_border_width(_progress_bar, 0, 0);
     lv_obj_set_style_pad_all(_progress_bar, 0, 0);

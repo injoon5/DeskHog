@@ -15,6 +15,8 @@
 #include "ui/FriendCard.h"
 #include "ui/examples/HelloWorldCard.h"
 #include "ui/FlappyHogCard.h"
+#include "ui/NowPlayingCard.h"
+#include "ui/YearProgressCard.h"
 #include "hardware/DisplayInterface.h"
 #include "EventQueue.h"
 #include "config/CardConfig.h"

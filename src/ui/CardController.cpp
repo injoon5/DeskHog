@@ -441,6 +441,64 @@ void CardController::initializeCardTypes() {
         return nullptr;
     };
     registerCardType(weatherDef);
+    
+    // Register NOW_PLAYING card type
+    CardDefinition nowPlayingDef;
+    nowPlayingDef.type = CardType::NOW_PLAYING;
+    nowPlayingDef.name = "Now Playing";
+    nowPlayingDef.allowMultiple = false;
+    nowPlayingDef.needsConfigInput = true;
+    nowPlayingDef.configInputLabel = "Last.fm username";
+    nowPlayingDef.uiDescription = "Display currently playing or recently played music from Last.fm";
+    nowPlayingDef.factory = [this](const String& configValue) -> lv_obj_t* {
+        if (configValue.isEmpty()) {
+            Serial.println("NOW_PLAYING card requires a Last.fm username");
+            return nullptr;
+        }
+        
+        NowPlayingCard* newCard = new NowPlayingCard(screen, configValue);
+        
+        if (newCard && newCard->getCard()) {
+            // Add to unified tracking system
+            CardInstance instance{newCard, newCard->getCard()};
+            dynamicCards[CardType::NOW_PLAYING].push_back(instance);
+            
+            // Register as input handler for updates
+            cardStack->registerInputHandler(newCard->getCard(), newCard);
+            
+            return newCard->getCard();
+        }
+        
+        delete newCard;
+        return nullptr;
+    };
+    registerCardType(nowPlayingDef);
+    
+    // Register YEAR_PROGRESS card type
+    CardDefinition yearProgressDef;
+    yearProgressDef.type = CardType::YEAR_PROGRESS;
+    yearProgressDef.name = "Year Progress";
+    yearProgressDef.allowMultiple = false;  // Only one year progress card needed
+    yearProgressDef.needsConfigInput = true;
+    yearProgressDef.configInputLabel = "Timezone (Seoul, New York, London, Tokyo, Los Angeles, Sydney)";
+    yearProgressDef.uiDescription = "Shows progress through the current year with timezone support";
+    yearProgressDef.factory = [this](const String& configValue) -> lv_obj_t* {
+        YearProgressCard* newCard = new YearProgressCard(screen, configValue.isEmpty() ? "Seoul" : configValue);
+        
+        if (newCard && newCard->getCard()) {
+            // Add to unified tracking system
+            CardInstance instance{newCard, newCard->getCard()};
+            dynamicCards[CardType::YEAR_PROGRESS].push_back(instance);
+            
+            // Register as input handler
+            cardStack->registerInputHandler(newCard->getCard(), newCard);
+            return newCard->getCard();
+        }
+        
+        delete newCard;
+        return nullptr;
+    };
+    registerCardType(yearProgressDef);
 }
 
 void CardController::handleCardConfigChanged() {

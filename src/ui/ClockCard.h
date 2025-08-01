@@ -3,10 +3,11 @@
 #include <lvgl.h>
 #include "InputHandler.h"
 #include "../config/CardConfig.h"
+#include "EventQueue.h"
 
 class ClockCard : public InputHandler {
 public:
-    ClockCard(lv_obj_t* parent, const String& timezone_config = "Seoul");
+    ClockCard(lv_obj_t* parent, EventQueue& eventQueue, const String& timezone_config = "Seoul");
     ~ClockCard();
     
     lv_obj_t* getCard() const { return _card; }
@@ -16,7 +17,8 @@ public:
     void prepareForRemoval() override { _card = nullptr; }
 
 private:
-    void initializeNTP();
+    void onEvent(const Event& event);
+    void requestTimeSync();
     void updateTime();
     void formatTime();
     void formatDate();
@@ -25,6 +27,8 @@ private:
     void hideError();
     bool isWiFiConnected();
     void updateProgressBar();
+    
+    EventQueue& _event_queue;
     
     lv_obj_t* _card;
     lv_obj_t* _time_label;
