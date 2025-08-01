@@ -31,6 +31,9 @@ private:
     lv_obj_t* _left_container;
     lv_obj_t* _right_container;
     lv_obj_t* _error_label;
+    lv_obj_t* _city_name_label;
+    lv_obj_t* left_top_container;
+    lv_obj_t* left_bottom_container;
     
     String _city_config;
     WeatherClient* _weatherClient;

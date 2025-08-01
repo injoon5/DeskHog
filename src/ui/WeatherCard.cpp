@@ -7,6 +7,7 @@ WeatherCard::WeatherCard(lv_obj_t* parent, const String& city_config)
     : _card(nullptr), _temp_label(nullptr), _main_label(nullptr), 
       _feels_like_label(nullptr), _humidity_label(nullptr), 
       _left_container(nullptr), _right_container(nullptr), _error_label(nullptr),
+      _city_name_label(nullptr), left_top_container(nullptr), left_bottom_container(nullptr),
       _city_config(city_config), _weatherClient(nullptr),
       _last_update(0), _error_shown(false), _has_data(false) {
     
@@ -18,28 +19,55 @@ WeatherCard::WeatherCard(lv_obj_t* parent, const String& city_config)
     lv_obj_set_style_pad_all(_card, 0, 0);
     lv_obj_set_style_radius(_card, 0, 0);
     
-    // Create left container for temperature (width: 150)
+    // Create left container (width: 130)
     _left_container = lv_obj_create(_card);
-    lv_obj_set_size(_left_container, 150, 135);
+    lv_obj_set_size(_left_container, 130, 135);
     lv_obj_set_pos(_left_container, 0, 0);
     lv_obj_set_style_bg_opa(_left_container, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_left_container, 0, 0);
     lv_obj_set_style_pad_all(_left_container, 0, 0);
     lv_obj_set_style_radius(_left_container, 0, 0);
     lv_obj_set_flex_flow(_left_container, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(_left_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(_left_container, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     
-    // Create temperature label in left container
-    _temp_label = lv_label_create(_left_container);
+    // Create top container for city name (height: 20, width: 130)
+    left_top_container = lv_obj_create(_left_container);
+    lv_obj_set_size(left_top_container, 130, 20);
+    lv_obj_set_style_bg_opa(left_top_container, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(left_top_container, 0, 0);
+    lv_obj_set_style_pad_all(left_top_container, 0, 0);
+    lv_obj_set_style_radius(left_top_container, 0, 0);
+    lv_obj_set_flex_flow(left_top_container, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(left_top_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    
+    // Create city name label in top container
+    _city_name_label = lv_label_create(left_top_container);
+    lv_label_set_text(_city_name_label, "--");
+    lv_obj_set_style_text_color(_city_name_label, lv_color_hex(0xD8D8D8), 0);
+    lv_obj_set_style_text_font(_city_name_label, Style::valueFont(), 0);
+    lv_obj_set_style_text_align(_city_name_label, LV_TEXT_ALIGN_CENTER, 0);
+    
+    // Create bottom container for temperature (height: 45, width: 130)
+    left_bottom_container = lv_obj_create(_left_container);
+    lv_obj_set_size(left_bottom_container, 130, 45);
+    lv_obj_set_style_bg_opa(left_bottom_container, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(left_bottom_container, 0, 0);
+    lv_obj_set_style_pad_all(left_bottom_container, 0, 0);
+    lv_obj_set_style_radius(left_bottom_container, 0, 0);
+    lv_obj_set_flex_flow(left_bottom_container, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(left_bottom_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    
+    // Create temperature label in bottom container
+    _temp_label = lv_label_create(left_bottom_container);
     lv_label_set_text(_temp_label, "--°C");
     lv_obj_set_style_text_color(_temp_label, lv_color_white(), 0);
     lv_obj_set_style_text_font(_temp_label, Style::largestValueFont(), 0);
     lv_obj_set_style_text_align(_temp_label, LV_TEXT_ALIGN_CENTER, 0);
     
-    // Create right container for weather details (width: 90)
+    // Create right container for weather details (width: 110)
     _right_container = lv_obj_create(_card);
-    lv_obj_set_size(_right_container, 90, 135);
-    lv_obj_set_pos(_right_container, 150, 0);
+    lv_obj_set_size(_right_container, 110, 135);
+    lv_obj_set_pos(_right_container, 130, 0);
     lv_obj_set_style_bg_opa(_right_container, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_right_container, 0, 0);
     lv_obj_set_style_pad_all(_right_container, 0, 0);
@@ -115,10 +143,20 @@ void WeatherCard::updateWeatherDisplay(const WeatherData& weatherData) {
         hideError();
     }
     
-    // Update temperature
+    // Update city name
+    lv_label_set_text(_city_name_label, weatherData.city.c_str());
+    
+    // Update temperature with font switching based on length
     char temp_str[16];
     snprintf(temp_str, sizeof(temp_str), "%.0f°C", weatherData.temperature);
     lv_label_set_text(_temp_label, temp_str);
+    
+    // Switch font based on string length (if over 5 characters, use medium font)
+    if (strlen(temp_str) > 5) {
+        lv_obj_set_style_text_font(_temp_label, Style::mediumValueFont(), 0);
+    } else {
+        lv_obj_set_style_text_font(_temp_label, Style::largestValueFont(), 0);
+    }
     
     // Update weather main
     lv_label_set_text(_main_label, weatherData.main.c_str());
