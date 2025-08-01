@@ -122,7 +122,9 @@ def main():
     font_configs = [
         {"name": "font_label", "file": "typography/Inter_18pt-Regular.ttf", "size": 15},
         {"name": "font_value", "file": "typography/Inter_18pt-SemiBold.ttf", "size": 16},
+        {"name": "font_value_medium", "file": "typography/Inter_18pt-SemiBold.ttf", "size": 24},
         {"name": "font_value_large", "file": "typography/Inter_18pt-SemiBold.ttf", "size": 36},
+        {"name": "font_value_largest", "file": "typography/Inter_18pt-SemiBold.ttf", "size": 48},
         {"name": "font_loud_noises", "file": "typography/LoudNoises.ttf", "size": 20}
     ]
     

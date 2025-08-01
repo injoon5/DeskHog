@@ -122,6 +122,14 @@ public:
     bool publishEvent(const Event& event);
     
     /**
+     * @brief Publish method alias for publishing events
+     * 
+     * @param event The event to publish
+     * @return true if the event was successfully queued
+     */
+    bool publish(const Event& event) { return publishEvent(event); }
+    
+    /**
      * @brief Subscribe to events
      * 
      * @param callback Function to call when an event is processed

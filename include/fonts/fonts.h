@@ -12,7 +12,9 @@ extern "C" {
 // Include all font headers
 #include "font_label.h"
 #include "font_value.h"
+#include "font_value_medium.h"
 #include "font_value_large.h"
+#include "font_value_largest.h"
 #include "font_loud_noises.h"
 
 #ifdef __cplusplus

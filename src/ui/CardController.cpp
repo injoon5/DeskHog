@@ -1,6 +1,7 @@
 #include "ui/CardController.h"
 #include "ui/PaddleCard.h"
 #include "ui/ClockCard.h"
+#include "ui/WeatherCard.h"
 #include <algorithm>
 
 QueueHandle_t CardController::uiQueue = nullptr;
@@ -15,6 +16,7 @@ CardController::CardController(
     ConfigManager& configManager,
     WiFiInterface& wifiInterface,
     PostHogClient& posthogClient,
+    WeatherClient& weatherClient,
     EventQueue& eventQueue
 ) : screen(screen),
     screenWidth(screenWidth),
@@ -22,6 +24,7 @@ CardController::CardController(
     configManager(configManager),
     wifiInterface(wifiInterface),
     posthogClient(posthogClient),
+    weatherClient(weatherClient),
     eventQueue(eventQueue),
     cardStack(nullptr),
     provisioningCard(nullptr),
@@ -388,11 +391,11 @@ void CardController::initializeCardTypes() {
     clockDef.type = CardType::CLOCK;
     clockDef.name = "Digital clock";
     clockDef.allowMultiple = false;
-    clockDef.needsConfigInput = false;
-    clockDef.configInputLabel = "";
-    clockDef.uiDescription = "A digital clock displaying time, date, and AM/PM";
+    clockDef.needsConfigInput = true;
+    clockDef.configInputLabel = "Timezone (Seoul, New York, London, Tokyo, Los Angeles, Sydney)";
+    clockDef.uiDescription = "A digital clock displaying time, date, and AM/PM with timezone support";
     clockDef.factory = [this](const String& configValue) -> lv_obj_t* {
-        ClockCard* newCard = new ClockCard(screen);
+        ClockCard* newCard = new ClockCard(screen, configValue.isEmpty() ? "Seoul" : configValue);
         
         if (newCard && newCard->getCard()) {
             // Add to unified tracking system
@@ -408,6 +411,36 @@ void CardController::initializeCardTypes() {
         return nullptr;
     };
     registerCardType(clockDef);
+    
+    // Register WEATHER card type
+    CardDefinition weatherDef;
+    weatherDef.type = CardType::WEATHER;
+    weatherDef.name = "Weather card";
+    weatherDef.allowMultiple = false;
+    weatherDef.needsConfigInput = true;
+    weatherDef.configInputLabel = "City name (e.g., Seoul, New York, London)";
+    weatherDef.uiDescription = "Display current weather information for a city";
+    weatherDef.factory = [this](const String& configValue) -> lv_obj_t* {
+        WeatherCard* newCard = new WeatherCard(screen, configValue.isEmpty() ? "Seoul" : configValue);
+        
+        if (newCard && newCard->getCard()) {
+            // Set weather client
+            newCard->setWeatherClient(&weatherClient);
+            
+            // Add to unified tracking system
+            CardInstance instance{newCard, newCard->getCard()};
+            dynamicCards[CardType::WEATHER].push_back(instance);
+            
+            // Register as input handler for updates
+            cardStack->registerInputHandler(newCard->getCard(), newCard);
+            
+            return newCard->getCard();
+        }
+        
+        delete newCard;
+        return nullptr;
+    };
+    registerCardType(weatherDef);
 }
 
 void CardController::handleCardConfigChanged() {

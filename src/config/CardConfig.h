@@ -14,7 +14,8 @@ enum class CardType {
     FLAPPY_HOG,   ///< Flappy Hog game card
     QUESTION,     ///< Question trivia card
     PADDLE,       ///< Paddle game card
-    CLOCK         ///< Digital clock card
+    CLOCK,        ///< Digital clock card
+    WEATHER       ///< Weather information card
     // New card types can be added here
 };
 
@@ -87,6 +88,7 @@ inline String cardTypeToString(CardType type) {
         case CardType::QUESTION: return "QUESTION";
         case CardType::PADDLE: return "PADDLE";
         case CardType::CLOCK: return "CLOCK";
+        case CardType::WEATHER: return "WEATHER";
         default: return "UNKNOWN";
     }
 }
@@ -104,5 +106,37 @@ inline CardType stringToCardType(const String& str) {
     if (str == "QUESTION") return CardType::QUESTION;
     if (str == "PADDLE") return CardType::PADDLE;
     if (str == "CLOCK") return CardType::CLOCK;
+    if (str == "WEATHER") return CardType::WEATHER;
     return CardType::INSIGHT; // Default fallback
+}
+
+/**
+ * @brief Timezone configuration helper for clock cards
+ */
+struct TimezoneConfig {
+    String name;         ///< Display name (e.g., "Seoul", "New York")
+    String timezone;     ///< POSIX timezone string (e.g., "KST-9", "EST5EDT,M3.2.0,M11.1.0")
+    int utc_offset_hours; ///< UTC offset in hours for display purposes
+    
+    TimezoneConfig() : name("Seoul"), timezone("KST-9"), utc_offset_hours(9) {}
+    TimezoneConfig(const String& n, const String& tz, int offset) 
+        : name(n), timezone(tz), utc_offset_hours(offset) {}
+};
+
+/**
+ * @brief Helper function to get timezone config from string
+ * @param config_str Configuration string (timezone name)
+ * @return TimezoneConfig struct with timezone details
+ */
+inline TimezoneConfig getTimezoneConfig(const String& config_str) {
+    // Use simpler timezone offsets in seconds for ESP32 configTime
+    if (config_str == "Seoul" || config_str == "") return TimezoneConfig("Seoul", "KST-9", 9);
+    if (config_str == "New York") return TimezoneConfig("New York", "EST5EDT,M3.2.0,M11.1.0", -5);
+    if (config_str == "London") return TimezoneConfig("London", "GMT0BST,M3.5.0,M10.5.0", 0);
+    if (config_str == "Tokyo") return TimezoneConfig("Tokyo", "JST-9", 9);
+    if (config_str == "Los Angeles") return TimezoneConfig("Los Angeles", "PST8PDT,M3.2.0,M11.1.0", -8);
+    if (config_str == "Sydney") return TimezoneConfig("Sydney", "AEST-10AEDT,M10.1.0,M4.1.0", 10);
+    
+    // Default to Seoul
+    return TimezoneConfig("Seoul", "KST-9", 9);
 }

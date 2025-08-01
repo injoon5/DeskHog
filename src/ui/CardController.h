@@ -8,6 +8,7 @@
 #include "ConfigManager.h"
 #include "hardware/WifiInterface.h"
 #include "posthog/PostHogClient.h"
+#include "weather/WeatherClient.h"
 #include "ui/CardNavigationStack.h"
 #include "ui/ProvisioningCard.h"
 #include "ui/InsightCard.h"
@@ -48,6 +49,7 @@ public:
         ConfigManager& configManager,
         WiFiInterface& wifiInterface,
         PostHogClient& posthogClient,
+        WeatherClient& weatherClient,
         EventQueue& eventQueue
     );
     
@@ -164,6 +166,7 @@ private:
     ConfigManager& configManager;   ///< Configuration manager reference
     WiFiInterface& wifiInterface;  ///< WiFi interface reference
     PostHogClient& posthogClient;  ///< PostHog client reference
+    WeatherClient& weatherClient;  ///< Weather client reference
     EventQueue& eventQueue;        ///< Event queue reference
     
     // UI Components

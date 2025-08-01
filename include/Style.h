@@ -6,7 +6,9 @@ class Style {
 private:
     static const lv_font_t* _label_font;
     static const lv_font_t* _value_font;
+    static const lv_font_t* _medium_value_font;
     static const lv_font_t* _large_value_font;
+    static const lv_font_t* _largest_value_font;
     static const lv_font_t* _loud_noises_font;
     static bool _fonts_initialized;
 
@@ -30,9 +32,19 @@ public:
         return _value_font;
     }
 
+    static const lv_font_t* mediumValueFont() {
+        initFonts();
+        return _medium_value_font;
+    }
+
     static const lv_font_t* largeValueFont() {
         initFonts();
         return _large_value_font;
+    }
+
+    static const lv_font_t* largestValueFont() {
+        initFonts();
+        return _largest_value_font;
     }
     
     static const lv_font_t* loudNoisesFont() {

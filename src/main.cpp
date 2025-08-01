@@ -28,6 +28,7 @@
 #include "ui/InsightCard.h"
 #include "hardware/Input.h"
 #include "posthog/PostHogClient.h"
+#include "weather/WeatherClient.h"
 #include "Style.h"
 #include "esp_heap_caps.h" // For PSRAM management
 #include "ui/CardController.h"
@@ -62,6 +63,7 @@ WiFiInterface* wifiInterface;
 CaptivePortal* captivePortal;
 CardController* cardController; // Replace individual card objects with controller
 PostHogClient* posthogClient;
+WeatherClient* weatherClient;
 EventQueue* eventQueue; // Add global EventQueue
 NeoPixelController* neoPixelController;  // Renamed from neoPixelManager
 OtaManager* otaManager;
@@ -255,6 +257,9 @@ void setup() {
     // Initialize PostHog client with event queue
     posthogClient = new PostHogClient(*configManager, *eventQueue);
     
+    // Initialize Weather client
+    weatherClient = new WeatherClient();
+    
     // Initialize display manager
     displayInterface = new DisplayInterface(
         SCREEN_WIDTH, SCREEN_HEIGHT, LVGL_BUFFER_ROWS, 
@@ -284,6 +289,7 @@ void setup() {
         *configManager,
         *wifiInterface,
         *posthogClient,
+        *weatherClient,
         *eventQueue
     );
     
