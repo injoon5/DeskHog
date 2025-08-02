@@ -17,7 +17,9 @@ enum class CardType {
     CLOCK,        ///< Digital clock card
     WEATHER,      ///< Weather information card
     NOW_PLAYING,  ///< Now playing music card
-    YEAR_PROGRESS ///< Year progress visualization card
+    YEAR_PROGRESS, ///< Year progress visualization card
+    TIMER,        ///< Timer countdown card
+    STOPWATCH     ///< Stopwatch counting up card
     // New card types can be added here
 };
 
@@ -93,6 +95,8 @@ inline String cardTypeToString(CardType type) {
         case CardType::WEATHER: return "WEATHER";
         case CardType::NOW_PLAYING: return "NOW_PLAYING";
         case CardType::YEAR_PROGRESS: return "YEAR_PROGRESS";
+        case CardType::TIMER: return "TIMER";
+        case CardType::STOPWATCH: return "STOPWATCH";
         default: return "UNKNOWN";
     }
 }
@@ -113,6 +117,8 @@ inline CardType stringToCardType(const String& str) {
     if (str == "WEATHER") return CardType::WEATHER;
     if (str == "NOW_PLAYING") return CardType::NOW_PLAYING;
     if (str == "YEAR_PROGRESS") return CardType::YEAR_PROGRESS;
+    if (str == "TIMER") return CardType::TIMER;
+    if (str == "STOPWATCH") return CardType::STOPWATCH;
     return CardType::INSIGHT; // Default fallback
 }
 

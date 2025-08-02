@@ -32,9 +32,11 @@ private:
     lv_obj_t* _title_container;
     lv_obj_t* _album_container;
     lv_obj_t* _artist_container;
+    lv_obj_t* _status_container;
     lv_obj_t* _title_label;
     lv_obj_t* _album_label;
     lv_obj_t* _artist_label;
+    lv_obj_t* _status_label;
     lv_obj_t* _error_label;
     
     String _username_config;
@@ -45,6 +47,6 @@ private:
     bool _has_data;
     uint8_t _retry_count;
     
-    static const uint32_t UPDATE_INTERVAL = 30000; // 1 min 30 sec in ms
+    static const uint32_t UPDATE_INTERVAL = 30000; // 30 sec in ms
     static const uint8_t MAX_RETRIES = 5;
 };

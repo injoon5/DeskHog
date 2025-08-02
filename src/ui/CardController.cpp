@@ -2,6 +2,8 @@
 #include "ui/PaddleCard.h"
 #include "ui/ClockCard.h"
 #include "ui/WeatherCard.h"
+#include "ui/TimerCard.h"
+#include "ui/StopwatchCard.h"
 #include "nowplaying/NowPlayingClient.h"
 #include <algorithm>
 #include <time.h>
@@ -165,24 +167,7 @@ void CardController::createAnimationCard() {
     displayInterface->giveMutex();
 }
 
-void CardController::createHelloWorldCard() {
-    if (!displayInterface || !displayInterface->takeMutex(portMAX_DELAY)) {
-        return;
-    }
-    
-    // Create new hello world card
-    HelloWorldCard* helloCard = new HelloWorldCard(screen);
-    
-    if (helloCard && helloCard->getCard()) {
-        // Add to navigation stack
-        cardStack->addCard(helloCard->getCard());
-        
-        // Register as an input handler
-        cardStack->registerInputHandler(helloCard->getCard(), helloCard);
-    }
-    
-    displayInterface->giveMutex();
-}
+
 
 
 
@@ -295,31 +280,7 @@ void CardController::initializeCardTypes() {
     };
     registerCardType(friendDef);
     
-    // Register HELLO_WORLD card type
-    CardDefinition helloDef;
-    helloDef.type = CardType::HELLO_WORLD;
-    helloDef.name = "Hello, world!";
-    helloDef.allowMultiple = true;
-    helloDef.needsConfigInput = false;
-    helloDef.configInputLabel = "";
-    helloDef.uiDescription = "A simple greeting card";
-    helloDef.factory = [this](const String& configValue) -> lv_obj_t* {
-        HelloWorldCard* newCard = new HelloWorldCard(screen);
-        
-        if (newCard && newCard->getCard()) {
-            // Add to unified tracking system
-            CardInstance instance{newCard, newCard->getCard()};
-            dynamicCards[CardType::HELLO_WORLD].push_back(instance);
-            
-            // Register as input handler
-            cardStack->registerInputHandler(newCard->getCard(), newCard);
-            return newCard->getCard();
-        }
-        
-        delete newCard;
-        return nullptr;
-    };
-    registerCardType(helloDef);
+    
     
     // Register FLAPPY_HOG card type
     CardDefinition flappyDef;
@@ -512,6 +473,58 @@ void CardController::initializeCardTypes() {
         return nullptr;
     };
     registerCardType(yearProgressDef);
+    
+    // Register TIMER card type
+    CardDefinition timerDef;
+    timerDef.type = CardType::TIMER;
+    timerDef.name = "Timer";
+    timerDef.allowMultiple = false;  // Only one timer at a time
+    timerDef.needsConfigInput = false;
+    timerDef.configInputLabel = "";
+    timerDef.uiDescription = "Countdown timer - click once for +1m, twice for +10m";
+    timerDef.factory = [this](const String& configValue) -> lv_obj_t* {
+        TimerCard* newCard = new TimerCard(screen);
+        
+        if (newCard && newCard->getCard()) {
+            // Add to unified tracking system
+            CardInstance instance{newCard, newCard->getCard()};
+            dynamicCards[CardType::TIMER].push_back(instance);
+            
+            // Register as input handler
+            cardStack->registerInputHandler(newCard->getCard(), newCard);
+            return newCard->getCard();
+        }
+        
+        delete newCard;
+        return nullptr;
+    };
+    registerCardType(timerDef);
+    
+    // Register STOPWATCH card type
+    CardDefinition stopwatchDef;
+    stopwatchDef.type = CardType::STOPWATCH;
+    stopwatchDef.name = "Stopwatch";
+    stopwatchDef.allowMultiple = false;  // Only one stopwatch at a time
+    stopwatchDef.needsConfigInput = false;
+    stopwatchDef.configInputLabel = "";
+    stopwatchDef.uiDescription = "Stopwatch timer - click once to start/stop, twice to clear";
+    stopwatchDef.factory = [this](const String& configValue) -> lv_obj_t* {
+        StopwatchCard* newCard = new StopwatchCard(screen);
+        
+        if (newCard && newCard->getCard()) {
+            // Add to unified tracking system
+            CardInstance instance{newCard, newCard->getCard()};
+            dynamicCards[CardType::STOPWATCH].push_back(instance);
+            
+            // Register as input handler
+            cardStack->registerInputHandler(newCard->getCard(), newCard);
+            return newCard->getCard();
+        }
+        
+        delete newCard;
+        return nullptr;
+    };
+    registerCardType(stopwatchDef);
 }
 
 void CardController::handleCardConfigChanged() {
@@ -775,10 +788,12 @@ void CardController::handleNowPlayingRequest(const Event& event) {
         responseEvent.success = success;
         
         if (success) {
-            // Format data as: "title|artist|album"
+            // Format data as: "title|artist|album|playedAt|isPlaying"
             responseEvent.data = nowPlayingData.title + "|" + 
                                nowPlayingData.artist + "|" +
-                               nowPlayingData.album;
+                               nowPlayingData.album + "|" +
+                               nowPlayingData.playedAt + "|" +
+                               (nowPlayingData.isPlaying ? "1" : "0");
             Serial.printf("CardController: Now playing data retrieved: %s by %s\n", 
                          nowPlayingData.title.c_str(), nowPlayingData.artist.c_str());
         } else {

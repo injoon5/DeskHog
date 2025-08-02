@@ -59,10 +59,17 @@ bool NowPlayingClient::fetchNowPlayingData(NowPlayingData& data) {
     data.artist = sanitizeText(artist);
     data.album = sanitizeText(album);
     
-    if (mostRecent.containsKey("date")) {
-        data.playedAt = sanitizeText(mostRecent["date"]["#text"].as<String>());
-    } else {
+    // Check if the track is currently playing
+    if (mostRecent.containsKey("@attr") && mostRecent["@attr"].containsKey("nowplaying")) {
+        data.isPlaying = true;
         data.playedAt = "Now playing";
+    } else {
+        data.isPlaying = false;
+        if (mostRecent.containsKey("date")) {
+            data.playedAt = sanitizeText(mostRecent["date"]["#text"].as<String>());
+        } else {
+            data.playedAt = "Recently played";
+        }
     }
     
     data.valid = true;

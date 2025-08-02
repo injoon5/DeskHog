@@ -10,9 +10,10 @@ struct NowPlayingData {
     String artist;
     String album;
     String playedAt;
+    bool isPlaying;
     bool valid;
     
-    NowPlayingData() : valid(false) {}
+    NowPlayingData() : valid(false), isPlaying(false) {}
 };
 
 class NowPlayingClient {

@@ -271,7 +271,7 @@ void WeatherCard::requestWeatherUpdate() {
     // Show loading state
     if (!_has_data) {
         lv_label_set_text(_temp_label, "--°C");
-        lv_label_set_text(_main_label, "Loading...");
+        lv_label_set_text(_main_label, "---");
     }
     
     // Publish event to request weather data (will be handled by Core 0)

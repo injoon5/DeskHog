@@ -18,7 +18,7 @@ NowPlayingCard::NowPlayingCard(lv_obj_t* parent, EventQueue& eventQueue, const S
     // Title container (0, 35), size (240, 30)
     _title_container = lv_obj_create(_card);
     lv_obj_set_size(_title_container, 240, 30);
-    lv_obj_set_pos(_title_container, 0, 25);
+    lv_obj_set_pos(_title_container, 0, 10);
     lv_obj_set_style_bg_opa(_title_container, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_title_container, 0, 0);
     lv_obj_set_style_pad_all(_title_container, 0, 0);
@@ -35,7 +35,7 @@ NowPlayingCard::NowPlayingCard(lv_obj_t* parent, EventQueue& eventQueue, const S
     // Album container (0, 60), size (240, 15)
     _album_container = lv_obj_create(_card);
     lv_obj_set_size(_album_container, 240, 25);
-    lv_obj_set_pos(_album_container, 0, 55);
+    lv_obj_set_pos(_album_container, 0, 40);
     lv_obj_set_style_bg_opa(_album_container, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_album_container, 0, 0);
     lv_obj_set_style_pad_all(_album_container, 0, 0);
@@ -52,7 +52,7 @@ NowPlayingCard::NowPlayingCard(lv_obj_t* parent, EventQueue& eventQueue, const S
     // Artist container (0, 85), size (240, 15)
     _artist_container = lv_obj_create(_card);
     lv_obj_set_size(_artist_container, 240, 25);
-    lv_obj_set_pos(_artist_container, 0, 85);
+    lv_obj_set_pos(_artist_container, 0, 70);
     lv_obj_set_style_bg_opa(_artist_container, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(_artist_container, 0, 0);
     lv_obj_set_style_pad_all(_artist_container, 0, 0);
@@ -65,6 +65,22 @@ NowPlayingCard::NowPlayingCard(lv_obj_t* parent, EventQueue& eventQueue, const S
     lv_obj_align(_artist_label, LV_ALIGN_CENTER, 0, 0);
     lv_label_set_long_mode(_artist_label, LV_LABEL_LONG_SCROLL);
     lv_label_set_text(_artist_label, "");
+    
+    // Status container (0, 110), size (240, 15)
+    _status_container = lv_obj_create(_card);
+    lv_obj_set_size(_status_container, 240, 20);
+    lv_obj_set_pos(_status_container, 0, 110);
+    lv_obj_set_style_bg_opa(_status_container, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(_status_container, 0, 0);
+    lv_obj_set_style_pad_all(_status_container, 0, 0);
+    
+    _status_label = lv_label_create(_status_container);
+    lv_obj_set_style_text_font(_status_label, Style::labelFont(), 0);
+    lv_obj_set_style_text_color(_status_label, lv_color_hex(0x90EE90), 0);
+    lv_obj_set_style_text_align(_status_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(_status_label, 230);
+    lv_obj_align(_status_label, LV_ALIGN_CENTER, 0, 0);
+    lv_label_set_text(_status_label, "");
     
     // Error label (hidden by default)
     _error_label = lv_label_create(_card);
@@ -122,25 +138,32 @@ bool NowPlayingCard::update() {
 void NowPlayingCard::onEvent(const Event& event) {
     if (event.type == EventType::NOW_PLAYING_DATA_RECEIVED) {
         if (event.success && !event.data.isEmpty()) {
-            // Parse the JSON data to NowPlayingData structure
+            // Parse the data format: "title|artist|album|playedAt|isPlaying"
             NowPlayingData data;
-            // Simple parsing - in a real implementation you'd use ArduinoJson
-            // For now, assume the data format is "title|artist|album"
-            int firstPipe = event.data.indexOf('|');
-            int secondPipe = event.data.indexOf('|', firstPipe + 1);
+            int pipes[4];
+            int pipeCount = 0;
             
-            if (firstPipe != -1 && secondPipe != -1) {
-                data.title = event.data.substring(0, firstPipe);
-                data.artist = event.data.substring(firstPipe + 1, secondPipe);
-                data.album = event.data.substring(secondPipe + 1);
+            // Find all pipe positions
+            for (int i = 0; i < event.data.length() && pipeCount < 4; i++) {
+                if (event.data.charAt(i) == '|') {
+                    pipes[pipeCount++] = i;
+                }
+            }
+            
+            if (pipeCount >= 4) {
+                data.title = event.data.substring(0, pipes[0]);
+                data.artist = event.data.substring(pipes[0] + 1, pipes[1]);
+                data.album = event.data.substring(pipes[1] + 1, pipes[2]);
+                data.playedAt = event.data.substring(pipes[2] + 1, pipes[3]);
+                data.isPlaying = event.data.substring(pipes[3] + 1) == "1";
                 
-                Serial.printf("NowPlayingCard: Data received: %s by %s\n", 
-                              data.title.c_str(), data.artist.c_str());
+                Serial.printf("NowPlayingCard: Data received: %s by %s (Playing: %s)\n", 
+                              data.title.c_str(), data.artist.c_str(), data.isPlaying ? "Yes" : "No");
                 updateNowPlayingDisplay(data);
                 hideError();
                 _has_data = true;
             } else {
-                Serial.println("NowPlayingCard: Invalid data format received");
+                Serial.printf("NowPlayingCard: Invalid data format received (expected 5 fields, got %d)\n", pipeCount + 1);
                 if (!_has_data) {
                     showError("Invalid data");
                 }
@@ -167,11 +190,13 @@ void NowPlayingCard::requestNowPlayingUpdate() {
                     lv_label_set_text(_title_label, "Connecting...");
                     lv_label_set_text(_album_label, "");
                     lv_label_set_text(_artist_label, "");
+                    lv_label_set_text(_status_label, "");
                 } else {
                     String retryMsg = "Retry " + String(_retry_count) + "/" + String(MAX_RETRIES);
                     lv_label_set_text(_title_label, retryMsg.c_str());
                     lv_label_set_text(_album_label, "");
                     lv_label_set_text(_artist_label, "");
+                    lv_label_set_text(_status_label, "");
                 }
             }
             
@@ -197,6 +222,7 @@ void NowPlayingCard::requestNowPlayingUpdate() {
         lv_label_set_text(_title_label, "Loading...");
         lv_label_set_text(_album_label, "");
         lv_label_set_text(_artist_label, "");
+        lv_label_set_text(_status_label, "");
     }
     
     // Publish event to request now playing data (will be handled by Core 0)
@@ -211,6 +237,15 @@ void NowPlayingCard::updateNowPlayingDisplay(const NowPlayingData& data) {
     lv_label_set_text(_title_label, data.title.c_str());
     lv_label_set_text(_album_label, data.album.c_str());
     lv_label_set_text(_artist_label, data.artist.c_str());
+    
+    // Set status text and color based on playing state
+    if (data.isPlaying) {
+        lv_label_set_text(_status_label, "Now Playing");
+        lv_obj_set_style_text_color(_status_label, lv_color_hex(0x90EE90), 0); // Light green
+    } else {
+        lv_label_set_text(_status_label, data.playedAt.c_str());
+        lv_obj_set_style_text_color(_status_label, lv_color_hex(0xD8D8D8), 0); // Light gray
+    }
 }
 
 void NowPlayingCard::showError(const String& message) {
@@ -225,6 +260,7 @@ void NowPlayingCard::showError(const String& message) {
     lv_obj_add_flag(_title_label, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(_album_label, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(_artist_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(_status_label, LV_OBJ_FLAG_HIDDEN);
     
     _error_shown = true;
 }
@@ -237,6 +273,7 @@ void NowPlayingCard::hideError() {
         lv_obj_clear_flag(_title_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(_album_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(_artist_label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(_status_label, LV_OBJ_FLAG_HIDDEN);
         
         _error_shown = false;
     }
