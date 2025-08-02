@@ -47,6 +47,13 @@ private:
     bool _has_data;
     uint8_t _retry_count;
     
+    // Cross-core UI update handling
+    NowPlayingData _pending_data;
+    bool _pending_update;
+    bool _pending_error_hide;
+    bool _pending_error_show;
+    String _pending_error_message;
+    
     static const uint32_t UPDATE_INTERVAL = 30000; // 30 sec in ms
     static const uint8_t MAX_RETRIES = 5;
 };

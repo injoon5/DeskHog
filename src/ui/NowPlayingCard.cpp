@@ -6,7 +6,7 @@
 
 NowPlayingCard::NowPlayingCard(lv_obj_t* parent, EventQueue& eventQueue, const String& username_config) 
     : _event_queue(eventQueue), _username_config(username_config), _nowPlayingClient(nullptr), _last_update(0), 
-      _error_shown(false), _has_data(false), _retry_count(0) {
+      _error_shown(false), _has_data(false), _retry_count(0), _pending_update(false), _pending_error_hide(false), _pending_error_show(false) {
     
     _card = lv_obj_create(parent);
     lv_obj_set_size(_card, 240, 135);
@@ -124,6 +124,22 @@ bool NowPlayingCard::handleButtonPress(uint8_t button_index) {
 }
 
 bool NowPlayingCard::update() {
+    // Handle pending UI updates from Core 0 events
+    if (_pending_update) {
+        updateNowPlayingDisplay(_pending_data);
+        _pending_update = false;
+    }
+    
+    if (_pending_error_hide) {
+        hideError();
+        _pending_error_hide = false;
+    }
+    
+    if (_pending_error_show) {
+        showError(_pending_error_message);
+        _pending_error_show = false;
+    }
+    
     uint32_t now = millis();
     
     // Check if it's time to update
@@ -159,19 +175,24 @@ void NowPlayingCard::onEvent(const Event& event) {
                 
                 Serial.printf("NowPlayingCard: Data received: %s by %s (Playing: %s)\n", 
                               data.title.c_str(), data.artist.c_str(), data.isPlaying ? "Yes" : "No");
-                updateNowPlayingDisplay(data);
-                hideError();
+                
+                // Store data for UI update on Core 1
+                _pending_data = data;
+                _pending_update = true;
+                _pending_error_hide = true;
                 _has_data = true;
             } else {
                 Serial.printf("NowPlayingCard: Invalid data format received (expected 5 fields, got %d)\n", pipeCount + 1);
                 if (!_has_data) {
-                    showError("Invalid data");
+                    _pending_error_message = "Invalid data";
+                    _pending_error_show = true;
                 }
             }
         } else {
             Serial.println("NowPlayingCard: Failed to receive data");
             if (!_has_data) {
-                showError("Failed to fetch data");
+                _pending_error_message = "Failed to fetch data";
+                _pending_error_show = true;
             }
         }
     }
